@@ -1,55 +1,93 @@
 const express = require("express");
 const cors = require("cors");
+require("dotenv").config();
+const mongoose = require("mongoose");
 
 const app = express();
 app.use(cors());
-app.use(express.json()); // allows JSON requests
+app.use(express.json());
 
-// Temporary in-memory list (later we’ll use a database)
-let animes = [];
+// 1. Connect to MongoDB
+mongoose
+  .connect(process.env.MONGO_URI)
+  .then(() => console.log("✅ Connected to MongoDB"))
+  .catch((err) => console.error("❌ MongoDB connection error:", err));
 
-// Get all animes
-app.get("/animes", (req, res) => {
-  res.json(animes);
+// 2. Define Anime Schema & Model
+const AnimeSchema = new mongoose.Schema({
+  title: { type: String, required: true, unique: true },
+  status: { type: String, default: "want to watch" },
 });
 
-// Add new anime
-app.post("/animes", (req, res) => {
-  const { title } = req.body;
+const Anime = mongoose.model("Anime", AnimeSchema);
 
-  // Prevent duplicates
-  const exists = animes.some(
-    (anime) => anime.title.toLowerCase() === title.toLowerCase(),
-  );
-  if (exists) {
-    return res.status(400).json({ error: "Anime already exists" });
+// 3. Routes
+
+// GET all anime
+app.get("/animes", async (req, res) => {
+  try {
+    const animes = await Anime.find();
+    res.json(animes);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch animes" });
   }
-
-  const newAnime = { title, status: "want to watch" };
-  animes.push(newAnime);
-  res.json(newAnime);
 });
 
-// Mark anime as watched
-app.put("/animes/:title", (req, res) => {
-  const { title } = req.params;
-  const anime = animes.find(
-    (a) => a.title.toLowerCase() === title.toLowerCase(),
-  );
-  if (!anime) return res.status(404).json({ error: "Anime not found" });
+// POST new anime
+app.post("/animes", async (req, res) => {
+  try {
+    const { title } = req.body;
+    const exists = await Anime.findOne({
+      title: new RegExp(`^${title}$`, "i"),
+    });
+    if (exists) {
+      return res.status(400).json({ error: "Anime already exists" });
+    }
 
-  anime.status = "watched";
-  res.json(anime);
+    const newAnime = new Anime({ title });
+    await newAnime.save();
+    res.json(newAnime);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to add anime" });
+  }
 });
 
-// Delete anime
-app.delete("/animes/:title", (req, res) => {
-  const { title } = req.params;
-  animes = animes.filter((a) => a.title.toLowerCase() !== title.toLowerCase());
-  res.json({ message: "Anime deleted" });
+// PUT update anime status
+app.put("/animes/:title", async (req, res) => {
+  try {
+    const { title } = req.params;
+    const anime = await Anime.findOneAndUpdate(
+      { title: new RegExp(`^${title}$`, "i") },
+      { status: "watched" },
+      { new: true },
+    );
+
+    if (!anime) return res.status(404).json({ error: "Anime not found" });
+    res.json(anime);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to update anime" });
+  }
 });
 
-// Start server
+// DELETE anime
+app.delete("/animes/:title", async (req, res) => {
+  try {
+    const { title } = req.params;
+    const result = await Anime.deleteOne({
+      title: new RegExp(`^${title}$`, "i"),
+    });
+
+    if (result.deletedCount === 0) {
+      return res.status(404).json({ error: "Anime not found" });
+    }
+
+    res.json({ message: "Anime deleted" });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to delete anime" });
+  }
+});
+
+// 4. Start server
 app.listen(5000, () => {
-  console.log("Server running on http://localhost:5000");
+  console.log("🚀 Server running on http://localhost:5000");
 });
