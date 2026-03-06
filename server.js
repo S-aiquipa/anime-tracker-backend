@@ -7,7 +7,7 @@ const Joi = require("joi");
 const app = express();
 app.use(
   cors({
-    origin: "https://anime-tracker-wheat-sigma.vercel.app/",
+    origin: "*",
     methods: ["GET", "POST", "PUT", "DELETE"],
     allowedHeaders: ["Content-Type", "Authorization"],
   }),
