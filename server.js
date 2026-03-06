@@ -5,7 +5,13 @@ const mongoose = require("mongoose");
 const Joi = require("joi");
 
 const app = express();
-app.use(cors());
+app.use(
+  cors({
+    origin: "https://your-actual-vercel-url.vercel.app",
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  }),
+);
 app.use(express.json());
 
 // 1. Connect to MongoDB
